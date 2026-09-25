@@ -5,7 +5,7 @@ Generate LLM responses to original and perturbed questions, select a representat
 The current generation loop makes **19 model calls per question**: one original question and 18 typo-perturbed variants. Although the internal parameter is named `synonyms`, the active perturbation is `apply_typo(text, 0.09)`.
 
 ## Setup
-
+Clone this repo: "https://github.com/yuh-zha/AlignScore.git"
 Run commands from the repository root so relative paths resolve correctly. Use a Python virtual environment:
 
 ```bash
