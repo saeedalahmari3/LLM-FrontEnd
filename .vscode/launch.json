@@ -1,0 +1,53 @@
+/*
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        }
+    ]
+}
+    */
+
+{
+    "files.autoSave": "onWindowChange",
+    "terminal.integrated.inheritEnv": false,
+
+    "python.defaultInterpreterPath": "/opt/anaconda3/envs/nlp_env/bin/python",
+    "python-envs.terminal.autoActivationType": "command",
+
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Python: Current File (nlp_env)",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "${file}",
+                "console": "integratedTerminal",
+                "python": "/opt/anaconda3/envs/nlp_env/bin/python",
+                "justMyCode": false
+            }
+        ]
+    },
+
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false
+    },
+
+    "terminal.integrated.gpuAcceleration": "on",
+    "editor.experimentalGpuAcceleration": "on",
+    "git.openRepositoryInParentFolders": "always",
+    "claudeCode.preferredLocation": "panel"
+}

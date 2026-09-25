@@ -102,6 +102,7 @@ def get_random_synonyms(sentence, sample_size=2):
     return result, sentence
 
 
+
 # -------------------------------
 # Example usage
 # -------------------------------

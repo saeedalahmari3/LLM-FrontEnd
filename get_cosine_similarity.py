@@ -1,15 +1,18 @@
 from sklearn.metrics.pairwise import cosine_similarity
-from get_bert_word_embedding import get_sentence_embedding,get_sentence_transformer_embedding
 from get_phi_embeddings import get_phi_embeddings
 import numpy as np
 from sklearn.manifold import TSNE
 #from sentence_transormers import SentenceTransformer
+from hallucination_score import compute_h
+
+CLEAN_HALLUCINATION_KEY = 'hallucination_score_clean_vs_label'
+CENTER_LABEL_HALLUCINATION_KEY = 'hallucination_score_center_vs_label'
+CENTER_CLEAN_HALLUCINATION_KEY = 'hallucination_score_center_vs_clean'
 
 def get_cosine_similarity(sentence1,sentence2):
     # Get embeddings
     #model = SentenceTransformer('sentence-transformer/all-mpnet-base-v2')
-    embedding1 = np.squeeze(np.array(get_phi_embeddings(sentence1)))
-    embedding2 = np.squeeze(np.array(get_phi_embeddings(sentence2))) 
+    embedding1, embedding2 = get_embeddings([sentence1, sentence2])
     # Compute cosine similarity
     similarity = cosine_similarity([embedding1], [embedding2])[0][0]
     #print(f"Cosine Similarity: {similarity}")
@@ -17,7 +20,12 @@ def get_cosine_similarity(sentence1,sentence2):
 
 def get_embeddings(texts):
     """Embed a list of texts into a 2D numpy array."""
-    return np.array([np.squeeze(np.array(get_phi_embeddings(text))) for text in texts])
+    embeddings = np.asarray(get_phi_embeddings(texts), dtype=float)
+    if embeddings.ndim != 2:
+        raise ValueError(
+            f"Expected a 2D embedding array, received shape {embeddings.shape}."
+        )
+    return embeddings
 
 def get_embedding_center(embeddings):
     """Compute a robust center by dropping distant outliers before averaging."""
@@ -30,15 +38,12 @@ def get_embedding_center(embeddings):
         return mean_emb, dists, mask
     return np.mean(filtered, axis=0), dists, mask
 
-def compute_hallucination_metrics(responses, reference_answer=None):
-    """Measure response agreement and, when available, agreement with reference.
+def compute_hallucination_metrics(responses, label=None, reference_answer=None):
+    """Select the center response and compute directional hallucination scores.
 
-    Consistency alone is not enough to detect hallucination because a model can
-    be consistently wrong. This function therefore returns:
-      - cluster dispersion across perturbed responses
-      - clean-response distance from the cluster center
-      - center-response similarity to the reference answer (if provided)
-      - a combined hallucination score in [0, 1]
+    ``reference_answer`` is retained as a fallback for existing callers;
+    ``label`` is the preferred ground-truth reference for clean/label and
+    center/label, while the clean response is the reference for center/clean.
     """
     if not responses:
         return {
@@ -47,21 +52,40 @@ def compute_hallucination_metrics(responses, reference_answer=None):
             'clean_to_center_similarity': 0.0,
             'cluster_dispersion': 0.0,
             'reference_similarity': None,
-            'hallucination_score': 1.0,
+            CLEAN_HALLUCINATION_KEY: 1.0,
+            CENTER_LABEL_HALLUCINATION_KEY: 1.0,
+            CENTER_CLEAN_HALLUCINATION_KEY: 1.0,
+            # Backward-compatible aliases.
+            'hallucination-score': 1.0,
+            'hallucination-score-center-vs-label': 1.0,
+            'hallucination-score-center-vs-clean': 1.0,
         }
 
+    ground_truth = label if label is not None else reference_answer
+    ground_truth = None if ground_truth is None else str(ground_truth)
+    clean_response = str(responses[0])
     embeddings = get_embeddings(responses)
     center, dists, mask = get_embedding_center(embeddings)
     sims_to_center = cosine_similarity([center], embeddings)[0]
     center_idx = int(np.argmax(sims_to_center))
-    center_response = responses[center_idx]
-
+    center_response = str(responses[center_idx])
     clean_embedding = embeddings[0]
     clean_to_center_similarity = cosine_similarity([center], [clean_embedding])[0][0]
     center_similarity_mean = float(np.mean(sims_to_center))
-
     kept_dists = dists[mask] if np.any(mask) else dists
     cluster_dispersion = float(np.mean(kept_dists))
+
+    clean_label_score = (
+        float('nan')
+        if ground_truth is None
+        else compute_h(ground_truth, clean_response)
+    )
+    center_label_score = (
+        float('nan')
+        if ground_truth is None
+        else compute_h(ground_truth, center_response)
+    )
+    center_clean_score = compute_h(clean_response, center_response)
 
     metrics = {
         'center_response': center_response,
@@ -69,25 +93,14 @@ def compute_hallucination_metrics(responses, reference_answer=None):
         'clean_to_center_similarity': float(clean_to_center_similarity),
         'cluster_dispersion': cluster_dispersion,
         'reference_similarity': None,
-        'hallucination_score': float(np.clip((1 - center_similarity_mean) / 2, 0.0, 1.0)),
+        CLEAN_HALLUCINATION_KEY: clean_label_score,
+        CENTER_LABEL_HALLUCINATION_KEY: center_label_score,
+        CENTER_CLEAN_HALLUCINATION_KEY: center_clean_score,
+        # Backward-compatible aliases for callers using the old schema.
+        'hallucination-score': clean_label_score,
+        'hallucination-score-center-vs-label': center_label_score,
+        'hallucination-score-center-vs-clean': center_clean_score,
     }
-
-    if reference_answer is not None and str(reference_answer).strip():
-        reference_embedding = np.squeeze(np.array(get_phi_embeddings(reference_answer)))
-        reference_similarity = cosine_similarity([center], [reference_embedding])[0][0]
-
-        # Higher score means more likely hallucination.
-        # We weight reference support more than consistency because consistent
-        # wrong answers are still hallucinations.
-        inconsistency_score = float(np.clip((1 - center_similarity_mean) / 2, 0.0, 1.0))
-        unsupported_score = float(np.clip((1 - reference_similarity) / 2, 0.0, 1.0))
-        clean_divergence_score = float(np.clip((1 - clean_to_center_similarity) / 2, 0.0, 1.0))
-        hallucination_score = (0.2 * inconsistency_score +
-                               0.2 * clean_divergence_score +
-                               0.6 * unsupported_score)
-
-        metrics['reference_similarity'] = float(reference_similarity)
-        metrics['hallucination_score'] = float(np.clip(hallucination_score, 0.0, 1.0))
 
     return metrics
 
@@ -104,7 +117,7 @@ def visualize_embedding_space(responses, labels=None):
         return None
     
     # Get embeddings
-    embeddings = np.array([np.squeeze(np.array(get_phi_embeddings(r))) for r in responses])
+    embeddings = get_embeddings(responses)
     
     # Reduce to 2D using t-SNE
     tsne = TSNE(n_components=2, random_state=42, perplexity=min(30, len(responses)-1))
@@ -130,7 +143,7 @@ def visualize_embedding_space(responses, labels=None):
     plt.savefig('embedding_space_visualization.pdf')
     plt.close()
 
-def select_closest_response(responses):
+def select_closest_response(responses, label=None):
     """Return the response closest to the center of the embedding distribution.
 
     Steps:
@@ -147,8 +160,5 @@ def select_closest_response(responses):
     if not responses:
         return None
 
-    metrics = compute_hallucination_metrics(responses)
+    metrics = compute_hallucination_metrics(responses, label)
     return metrics['center_response']
-
-
-

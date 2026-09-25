@@ -58,16 +58,57 @@ def span_after_message(content):
     return results
 
 
+def translateSentence(sentence, prompt_task, model_name="openai/gpt-oss-20b"):
+    """Translate a sentence to Arabic using an LLM model."""
+    client = Together()
+    if not sentence or not model_name:
+        return ""
+    
+    try:
+        # Prepare the prompt for translation
+        #Translate the following English sentence to Arabic:
+        prompt = f"{prompt_task}\n\n{sentence}"
+        
+        # Call the model for translation
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=256
+        )
+        
+        # Extract the translated text
+        if isinstance(response, str):
+            translated_text = response.strip()
+        elif isinstance(response, dict) and 'text' in response:
+            translated_text = response['text'].strip()
+        elif hasattr(response, 'choices') and len(response.choices) > 0:
+            translated_text = response.choices[0].message.content.strip()
+        elif hasattr(response, 'text'):
+            translated_text = response.text.strip()
+        else:
+            translated_text = str(response).strip()
+        
+        return translated_text
+    
+    except Exception as e:
+        print(f"Error in translation: {e}")
+        return ""
+
 def run_model(prompt, temp = 1, topk = 1, parameter = 'temp', model_name = "openai/gpt-oss-20b"):
     if model_name in ['gpt-5','gpt-4o','gpt-5-nano','o4-mini-2025-04-16']:
          client = OpenAI()
          #pass
-    elif model_name in ["ssalahmari/google/gemma-3-12b-it-fcdf3056","openai/gpt-oss-20b","google/gemma-3n-E4B-it",'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo','mistralai/Ministral-3-14B-Instruct-2512']:
+    elif model_name in ["openai/gpt-oss-20b","google/gemma-4-31B-it","ssalahmari/google/gemma-3-12b-it-fcdf3056","google/gemma-3n-E4B-it",'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo','mistralai/Ministral-3-14B-Instruct-2512']:
          client = Together()
     elif 'gemini' in model_name:
          client = genai.Client()
          #pass
-    elif model_name in ['phi4:latest','phi4-mini','wao/phi4-mini-instruct:latest','ministral-3:3b']:
+    elif model_name in ['gemma3:4b','gemma3:12b','phi4:latest','phi4-mini','wao/phi4-mini-instruct:latest','ministral-3:3b']:
          #HERE call ollama 
          return get_ollama_model_response(model_name, prompt, parameter.lower())
 
