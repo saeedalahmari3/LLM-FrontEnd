@@ -46,7 +46,13 @@ def generate_responses(test_data, MODEL_NAME,dataset_name, parameter = 'synonyms
         #            something in the future, nonsense: the question do not make sense, obscure: the answer to the question is unknown. 
         #"""
         
-        prompt_template = """ Answer the following question by True if you think the question answer is either did_not_happen, far_future, nonsense, obscure or correct.  Otherwise answer the question by False. In both cases provide a maximum of 5 words justification'.
+        #prompt_template = """ Answer the following question by True if you think the question answer is either did_not_happen, far_future, nonsense, obscure or correct.  Otherwise answer the question by False. In both cases provide a maximum of 5 words justification'.
+        #        Question: [DOCUMENT]
+        #        """
+        prompt_template = """ Answer the following question by True if you think the category of this question/statment is one of the five following options: 1. did_not_happen,  2. far_future, 3. nonsense, 
+        4. obscure 5. factual.  Otherwise respond by False if the question/statement category is not one of the provided options. In both True and False cases provide exactly 15 words justification.
+        The defintion of options is provided here: did_not_happen: means question/statement asking about something did not happen at all in the past, far_future: means the question/statement is asking about 
+        something in the future, nonsense: the question/statement do not make sense, obscure: the answer to the question/statement is unknown, and factual is question/statement that is make actually happend. 
         Question: [DOCUMENT]
         """
         try:
@@ -158,7 +164,7 @@ def load_process_data(dataset_name,API_Key,MODEL_NAME,save_results_dir):
         dataset_name = 'MBZUAI/LaMini-Hallucination'
         split_flag = 'test'
     elif dataset_name.lower() == 'mbzuai_expanded':
-        dataset_name = '/Users/saeedalahmari/Documents/LLM_ensemble_USF/code/LLMFrontEnd/mbzuai_extended_with_correct.csv'
+        dataset_name = '/Users/saeedalahmari/Documents/LLM_ensemble_USF/code/LLMFrontEnd/mbzuai_extended_with_correct5x.csv'
         split_flag = 'test'
     else:
         raise ValueError('Error in the name of the dataset, do python LLM_FrontEnd.py --help')
